@@ -23,7 +23,7 @@ Decentralized GitFL is an innovative approach to federated learning that enables
 Compared to traditional centralized federated learning approaches:
 
 - 38.56% model accuracy (5% improvement)
-- 7.2× faster convergence
+- 7.2x faster convergence
 - Enhanced resilience to network failures
 - Better scalability with distributed computation
 
@@ -83,12 +83,12 @@ DECENTRALIZED_GITFL/
 ├── utils/                  # Core components
 │   ├── get_dataset.py
 │   ├── set_seed.py
-│   ├── decentralized_repository.py
-│   ├── DecentralizedGitFLNode.py
-│   ├── distributed_rl_selector.py
-│   ├── p2p_network.py
-│   └── simulation.py
-│
+|
+│── decentralized_repository.py
+│── DecentralizedGitFLNode.py
+│── distributed_rl_selector.py
+│── p2p_network.py
+│── simulation.py
 ├── main.py                 # Entry point
 ├── requirements.txt
 └── README.md
