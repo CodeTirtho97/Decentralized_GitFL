@@ -13,19 +13,25 @@ class DecentralizedGitFLNode:
     """A complete node in the decentralized GitFL system"""
     
     def __init__(self, node_id, host, port, model, dataset, local_data_indices, 
-                 learning_rate=0.01, local_epochs=5, batch_size=50):
+                 learning_rate=0.01, local_epochs=2, batch_size=32):
         # Basic configuration
         self.node_id = node_id
-        self.model = copy.deepcopy(model)
+        
+        # CRITICAL FIX: Define device FIRST before using it
+        self.device = torch.device("cpu")  # Force CPU usage
+        
+        # Now we can safely use self.device
+        self.model = copy.deepcopy(model).to(self.device)
         self.dataset = dataset
         self.local_data_indices = local_data_indices
         self.lr = learning_rate
-        self.local_epochs = local_epochs
+        
+        # CPU-optimized parameters
         self.batch_size = batch_size
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.local_epochs = local_epochs
         
         # Initialize components
-        self.repository = DecentralizedRepository(model, node_id)
+        self.repository = DecentralizedRepository(self.model, node_id)  # Pass self.model instead of model
         self.network = P2PNode(node_id, host, port)
         self.peer_selector = PeerSelector(node_id)
         
@@ -42,6 +48,8 @@ class DecentralizedGitFLNode:
         self.sharing_thread = None
         self.local_training_time = 0
         self.total_iterations = 0
+        
+        print(f"📱 Node {self.node_id} initialized on {host}:{port} (CPU mode)")
         
     def start(self):
         """Start all node operations"""
@@ -87,13 +95,15 @@ class DecentralizedGitFLNode:
                 training_model = self.repository.pull_master_to_branch()
                 training_model.to(self.device)
                 
-                # Prepare data loader
+                # Prepare data loader with CPU optimization
                 indices = torch.tensor(self.local_data_indices, dtype=torch.long)
                 dataset = torch.utils.data.Subset(self.dataset, indices)
                 data_loader = DataLoader(
                     dataset,
                     batch_size=self.batch_size,
-                    shuffle=True
+                    shuffle=True,
+                    num_workers=0,  # CPU optimization
+                    pin_memory=False  # CPU optimization
                 )
                 
                 # Setup training
@@ -281,10 +291,13 @@ class DecentralizedGitFLNode:
         model.to(self.device)
         model.eval()
         
+        # CPU-optimized test loader
         test_loader = DataLoader(
             test_dataset,
-            batch_size=128,
-            shuffle=False
+            batch_size=64,  # Smaller batch size for CPU
+            shuffle=False,
+            num_workers=0,  # CPU optimization
+            pin_memory=False  # CPU optimization
         )
         
         correct = 0

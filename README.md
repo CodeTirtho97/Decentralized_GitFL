@@ -7,10 +7,6 @@
 
 > **A novel peer-to-peer federated learning framework that eliminates central coordination while preserving Git-inspired version control for effective model staleness management.**
 
-
-![Decentralized_GitFL](https://github.com/user-attachments/assets/e85d1170-8c4f-4f6f-b7ac-c8ea0c6a0d18)
-
-
 ## 📋 Abstract
 
 Federated Learning (FL) has emerged as a transformative distributed machine learning paradigm enabling privacy-preserving model training across multiple devices without sharing raw data. However, existing FL frameworks face critical challenges: device heterogeneity introduces "stragglers" that delay training, non-IID data distributions cause model divergence, and central server architectures create single points of failure.

@@ -47,14 +47,24 @@ def distribute_data(dataset, num_nodes, iid=True, alpha=0.5):
             
         return node_indices
 
-def run_simulation(num_nodes=5, iid=True, alpha=0.5, runtime=300, base_port=8000, local_epochs=5):
-    """Run a simulation of the decentralized GitFL system"""
+def run_simulation(num_nodes=5, iid=True, alpha=0.5, runtime=900, base_port=8000, local_epochs=2):
+    """Run a simulation of the decentralized GitFL system with CPU optimizations"""
     # Set random seeds for reproducibility
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
     
-    # Prepare dataset
+    # Force CPU usage and disable CUDA
+    torch.backends.cudnn.enabled = False
+    
+    print(f"🔧 Starting Decentralized GitFL Simulation")
+    print(f"   Nodes: {num_nodes}")
+    print(f"   Runtime: {runtime}s")
+    print(f"   Local epochs: {local_epochs}")
+    print(f"   IID: {iid}")
+    print(f"   Device: CPU (forced)")
+    
+    # Prepare dataset with CPU-optimized settings
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -66,15 +76,15 @@ def run_simulation(num_nodes=5, iid=True, alpha=0.5, runtime=300, base_port=8000
     # Distribute data across nodes
     node_data_indices = distribute_data(dataset_train, num_nodes, iid, alpha)
     
-    # Create model architecture (used by all nodes)
+    # Create model architecture (FORCE CPU DEVICE)
     args = type('Args', (), {
         'num_channels': 3,
         'num_classes': 10,
-        'device': torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        'device': torch.device("cpu")  # Force CPU only
     })
     model = CNNCifar(args)
     
-    # Create nodes
+    # Create nodes with CPU-optimized parameters
     nodes = []
     for i in range(num_nodes):
         # Use localhost with different ports
@@ -89,8 +99,8 @@ def run_simulation(num_nodes=5, iid=True, alpha=0.5, runtime=300, base_port=8000
             dataset=dataset_train,
             local_data_indices=node_data_indices[i],
             learning_rate=0.01,
-            local_epochs=local_epochs,
-            batch_size=50
+            local_epochs=local_epochs,  # Use the passed parameter (default 2)
+            batch_size=32  # Reduced from 50 for CPU optimization
         )
         
         nodes.append(node)
@@ -102,54 +112,115 @@ def run_simulation(num_nodes=5, iid=True, alpha=0.5, runtime=300, base_port=8000
         nodes[next_node].add_peer(i, "127.0.0.1", base_port + i)
     
     # Start all nodes
+    print("🚀 Starting all nodes...")
     for node in nodes:
         node.start()
-        
+    
+    # Give nodes time to initialize
+    time.sleep(5)
+    
     # Monitor and report progress
     start_time = time.time()
+    last_report_time = 0
+    
     try:
         while time.time() - start_time < runtime:
-            # Evaluate models periodically
-            if int((time.time() - start_time) / 30) % 2 == 0:  # Every 60 seconds
-                print("\n" + "="*50)
-                print(f"Simulation running for {int(time.time() - start_time)}s")
+            current_time = time.time() - start_time
+            
+            # Report progress every 60 seconds or at key intervals
+            if current_time - last_report_time >= 60 or current_time in [180, 360, 540, 720]:
+                print("\n" + "="*60)
+                print(f"⏱️  Simulation Time: {int(current_time)}s / {runtime}s")
                 
                 # Evaluate each node's model
                 accuracies = []
+                max_accuracy = 0
                 for i, node in enumerate(nodes):
                     try:
                         accuracy = node.evaluate(dataset_test)
                         accuracies.append(accuracy)
-                        print(f"Node {i} accuracy: {accuracy:.2f}%")
+                        max_accuracy = max(max_accuracy, accuracy)
+                        print(f"   Node {i}: {accuracy:.2f}% accuracy")
                     except Exception as e:
-                        print(f"Error evaluating node {i}: {e}")
+                        print(f"   Node {i}: Error - {str(e)[:50]}...")
+                        accuracies.append(0)
                 
                 if accuracies:
-                    print(f"Average accuracy: {sum(accuracies)/len(accuracies):.2f}%")
-                    print(f"Max accuracy: {max(accuracies):.2f}%")
+                    avg_accuracy = sum(accuracies) / len(accuracies)
+                    print(f"📊 Average Accuracy: {avg_accuracy:.2f}%")
+                    print(f"📈 Maximum Accuracy: {max_accuracy:.2f}%")
+                    print(f"📊 Min Accuracy: {min(accuracies):.2f}%")
+                    
+                    # Log key milestones for comparison
+                    if int(current_time) in [184, 364, 563, 739]:
+                        print(f"🎯 MILESTONE: Time {int(current_time)}s - Max Accuracy: {max_accuracy:.2f}%")
+                
+                last_report_time = current_time
             
-            # Sleep to avoid hogging CPU
-            time.sleep(5)
+            # Sleep to avoid excessive CPU usage
+            time.sleep(10)
             
     except KeyboardInterrupt:
-        print("\nSimulation interrupted by user")
+        print("\n⚠️  Simulation interrupted by user")
     finally:
+        print("\n🛑 Stopping all nodes...")
         # Stop all nodes
         for node in nodes:
-            node.stop()
-        
-        print("Simulation complete")
+            try:
+                node.stop()
+            except:
+                pass
         
         # Final evaluation
+        print("\n" + "="*60)
+        print("📋 FINAL RESULTS")
+        print("="*60)
+        
         final_accuracies = []
+        final_time = time.time() - start_time
+        
         for i, node in enumerate(nodes):
             try:
                 accuracy = node.evaluate(dataset_test)
                 final_accuracies.append(accuracy)
-                print(f"Final Node {i} accuracy: {accuracy:.2f}%")
-            except:
-                pass
-                
+                print(f"   Node {i} Final Accuracy: {accuracy:.2f}%")
+            except Exception as e:
+                print(f"   Node {i} Final Accuracy: Error - {e}")
+                final_accuracies.append(0)
+        
         if final_accuracies:
-            print(f"Final Average accuracy: {sum(final_accuracies)/len(final_accuracies):.2f}%")
-            print(f"Final Max accuracy: {max(final_accuracies):.2f}%")
+            avg_final = sum(final_accuracies) / len(final_accuracies)
+            max_final = max(final_accuracies)
+            min_final = min(final_accuracies)
+            
+            print(f"\n🎯 SUMMARY STATISTICS:")
+            print(f"   Total Runtime: {final_time:.1f}s")
+            print(f"   Average Final Accuracy: {avg_final:.2f}%")
+            print(f"   Maximum Final Accuracy: {max_final:.2f}%")
+            print(f"   Minimum Final Accuracy: {min_final:.2f}%")
+            print(f"   Accuracy Range: {max_final - min_final:.2f}%")
+            
+            # Comparison metrics for thesis
+            print(f"\n📊 FOR THESIS COMPARISON:")
+            print(f"   Decentralized GitFL Final Max Accuracy: {max_final:.2f}%")
+            print(f"   Decentralized GitFL Convergence Time: {final_time:.1f}s")
+            print(f"   Decentralized GitFL Average Accuracy: {avg_final:.2f}%")
+        
+        print("\n✅ Simulation completed successfully!")
+        
+        # Save results for later analysis
+        results = {
+            'final_max_accuracy': max_final if final_accuracies else 0,
+            'final_avg_accuracy': avg_final if final_accuracies else 0,
+            'total_runtime': final_time,
+            'num_nodes': num_nodes,
+            'local_epochs': local_epochs,
+            'iid': iid,
+            'alpha': alpha
+        }
+        
+        import json
+        with open(f'decentralized_gitfl_results_{int(time.time())}.json', 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        print(f"📁 Results saved to: decentralized_gitfl_results_{int(time.time())}.json")

@@ -1,0 +1,9 @@
+{
+  "final_max_accuracy": 49.34,
+  "final_avg_accuracy": 48.034000000000006,
+  "total_runtime": 1116.084083557129,
+  "num_nodes": 5,
+  "local_epochs": 2,
+  "iid": true,
+  "alpha": 0.5
+}
